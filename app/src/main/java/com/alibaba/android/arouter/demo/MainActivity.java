@@ -14,11 +14,17 @@ import android.widget.Toast;
 
 import com.alibaba.android.arouter.demo.testinject.TestObj;
 import com.alibaba.android.arouter.demo.testinject.TestParcelable;
+import com.alibaba.android.arouter.demo.testinject.TestSerializable;
 import com.alibaba.android.arouter.demo.testservice.HelloService;
 import com.alibaba.android.arouter.demo.testservice.SingleService;
 import com.alibaba.android.arouter.facade.Postcard;
 import com.alibaba.android.arouter.facade.callback.NavCallback;
 import com.alibaba.android.arouter.launcher.ARouter;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
 
@@ -124,8 +130,14 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                         .navigation();
                 break;
             case R.id.autoInject:
+                TestSerializable testSerializable = new TestSerializable("Titanic", 555);
                 TestParcelable testParcelable = new TestParcelable("jack", 666);
                 TestObj testObj = new TestObj("Rose", 777);
+                List<TestObj> objList = new ArrayList<>();
+                objList.add(testObj);
+
+                Map<String, List<TestObj>> map = new HashMap<>();
+                map.put("testMap", objList);
 
                 ARouter.getInstance().build("/test/activity1")
                         .withString("name", "老王")
@@ -133,8 +145,11 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                         .withBoolean("boy", true)
                         .withLong("high", 180)
                         .withString("url", "https://a.b.c")
+                        .withSerializable("ser", testSerializable)
                         .withParcelable("pac", testParcelable)
                         .withObject("obj", testObj)
+                        .withObject("objList", objList)
+                        .withObject("map", map)
                         .navigation();
                 break;
             case R.id.navByName:

@@ -7,6 +7,7 @@ import com.alibaba.android.arouter.facade.annotation.Autowired;
 import com.alibaba.android.arouter.facade.enums.TypeKind;
 import com.google.auto.service.AutoService;
 import com.squareup.javapoet.ClassName;
+import com.squareup.javapoet.CodeBlock;
 import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.MethodSpec;
@@ -158,7 +159,7 @@ public class AutowiredProcessor extends AbstractProcessor {
                         } else {    // use byName
                             // Getter
                             injectMethodBuilder.addStatement(
-                                    "substitute." + fieldName + " = ($T)$T.getInstance().build($S).navigation();",
+                                    "substitute." + fieldName + " = ($T)$T.getInstance().build($S).navigation()",
                                     ClassName.get(element.asType()),
                                     ARouterClass,
                                     fieldConfig.name()
@@ -174,22 +175,22 @@ public class AutowiredProcessor extends AbstractProcessor {
                         }
                     } else {    // It's normal intent value
                         String originalValue = "substitute." + fieldName;
-                        String statment = "substitute." + fieldName + " = substitute.";
+                        String statement = "substitute." + fieldName + " = " + buildCastCode(element) + "substitute.";
                         boolean isActivity = false;
                         if (types.isSubtype(parent.asType(), activityTm)) {  // Activity, then use getIntent()
                             isActivity = true;
-                            statment += "getIntent().";
+                            statement += "getIntent().";
                         } else if (types.isSubtype(parent.asType(), fragmentTm) || types.isSubtype(parent.asType(), fragmentTmV4)) {   // Fragment, then use getArguments()
-                            statment += "getArguments().";
+                            statement += "getArguments().";
                         } else {
                             throw new IllegalAccessException("The field [" + fieldName + "] need autowired from intent, its parent must be activity or fragment!");
                         }
 
-                        statment = buildStatement(originalValue, statment, typeUtils.typeExchange(element), isActivity);
-                        if (statment.startsWith("serializationService.")) {   // Not mortals
+                        statement = buildStatement(originalValue, statement, typeUtils.typeExchange(element), isActivity);
+                        if (statement.startsWith("serializationService.")) {   // Not mortals
                             injectMethodBuilder.beginControlFlow("if (null != serializationService)");
                             injectMethodBuilder.addStatement(
-                                    "substitute." + fieldName + " = " + statment,
+                                    "substitute." + fieldName + " = " + statement,
                                     (StringUtils.isEmpty(fieldConfig.name()) ? fieldName : fieldConfig.name()),
                                     ClassName.get(element.asType())
                             );
@@ -198,7 +199,7 @@ public class AutowiredProcessor extends AbstractProcessor {
                                     "$T.e(\"" + Consts.TAG + "\", \"You want automatic inject the field '" + fieldName + "' in class '$T' , then you should implement 'SerializationService' to support object auto inject!\")", AndroidLog, ClassName.get(parent));
                             injectMethodBuilder.endControlFlow();
                         } else {
-                            injectMethodBuilder.addStatement(statment, StringUtils.isEmpty(fieldConfig.name()) ? fieldName : fieldConfig.name());
+                            injectMethodBuilder.addStatement(statement, StringUtils.isEmpty(fieldConfig.name()) ? fieldName : fieldConfig.name());
                         }
 
                         // Validator
@@ -223,11 +224,18 @@ public class AutowiredProcessor extends AbstractProcessor {
         }
     }
 
+    private String buildCastCode(Element element) {
+        if (typeUtils.typeExchange(element) == TypeKind.SERIALIZABLE.ordinal()) {
+            return CodeBlock.builder().add("($T) ", ClassName.get(element.asType())).build().toString();
+        }
+        return "";
+    }
+
     private String buildStatement(String originalValue, String statement, int type, boolean isActivity) {
         if (type == TypeKind.BOOLEAN.ordinal()) {
             statement += (isActivity ? ("getBooleanExtra($S, " + originalValue + ")") : ("getBoolean($S)"));
         } else if (type == TypeKind.BYTE.ordinal()) {
-            statement += (isActivity ? ("getByteExtra($S, " + originalValue + "") : ("getByte($S)"));
+            statement += (isActivity ? ("getByteExtra($S, " + originalValue + ")") : ("getByte($S)"));
         } else if (type == TypeKind.SHORT.ordinal()) {
             statement += (isActivity ? ("getShortExtra($S, " + originalValue + ")") : ("getShort($S)"));
         } else if (type == TypeKind.INT.ordinal()) {
@@ -242,10 +250,12 @@ public class AutowiredProcessor extends AbstractProcessor {
             statement += (isActivity ? ("getDoubleExtra($S, " + originalValue + ")") : ("getDouble($S)"));
         } else if (type == TypeKind.STRING.ordinal()) {
             statement += (isActivity ? ("getStringExtra($S)") : ("getString($S)"));
+        } else if (type == TypeKind.SERIALIZABLE.ordinal()) {
+            statement += (isActivity ? ("getSerializableExtra($S)") : ("getSerializable($S)"));
         } else if (type == TypeKind.PARCELABLE.ordinal()) {
             statement += (isActivity ? ("getParcelableExtra($S)") : ("getParcelable($S)"));
         } else if (type == TypeKind.OBJECT.ordinal()) {
-            statement = "serializationService.json2Object(substitute." + (isActivity ? "getIntent()." : "getArguments().") + (isActivity ? "getStringExtra($S)" : "getString($S)") + ", $T.class)";
+            statement = "serializationService.parseObject(substitute." + (isActivity ? "getIntent()." : "getArguments().") + (isActivity ? "getStringExtra($S)" : "getString($S)") + ", new com.alibaba.android.arouter.facade.model.TypeWrapper<$T>(){}.getType())";
         }
 
         return statement;
@@ -262,7 +272,7 @@ public class AutowiredProcessor extends AbstractProcessor {
                 TypeElement enclosingElement = (TypeElement) element.getEnclosingElement();
 
                 if (element.getModifiers().contains(Modifier.PRIVATE)) {
-                    throw new IllegalAccessException("The autowired fields CAN NOT BE 'private'!!! please check field ["
+                    throw new IllegalAccessException("The inject fields CAN NOT BE 'private'!!! please check field ["
                             + element.getSimpleName() + "] in class [" + enclosingElement.getQualifiedName() + "]");
                 }
 

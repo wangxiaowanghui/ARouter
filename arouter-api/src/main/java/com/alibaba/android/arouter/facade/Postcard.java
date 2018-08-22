@@ -43,8 +43,8 @@ public final class Postcard extends RouteMeta {
 
     // Animation
     private Bundle optionsCompat;    // The transition animation of activity
-    private int enterAnim;
-    private int exitAnim;
+    private int enterAnim = -1;
+    private int exitAnim = -1;
 
     public Bundle getOptionsBundle() {
         return optionsCompat;
@@ -604,5 +604,14 @@ public final class Postcard extends RouteMeta {
                 ", exitAnim=" + exitAnim +
                 "}\n" +
                 super.toString();
+    }
+    //增加设置intent的action
+    private String action;
+    public String getAction(){
+        return action;
+    }
+    public Postcard withAction(String action){
+        this.action=action;
+        return this;
     }
 }
